@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,16 @@ import { useToast } from '@/hooks/use-toast';
 import { sendSummerCampEmail } from '../services/emailService';
 import { redirectToRedsysPayment } from '../services/redsysService';
 
+interface Week {
+  id: number;
+  name: string;
+  period: string;
+  basePrice: number;
+  menjadorPrice: number;
+  guarderiaPrice: number;
+  available: boolean;
+}
+
 interface FormData {
   childName: string;
   birthDate: string;
@@ -21,12 +32,28 @@ interface FormData {
   email: string;
   allergies: string;
   largeFamily: boolean;
+  selectedWeeks: { [key: number]: boolean };
+  weekServices: { [key: number]: { menjador: boolean; guarderia: boolean } };
 }
 
 const SummerCampForm = () => {
   const { t } = useLanguage();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const weeks: Week[] = [
+    { id: 1, name: "Setmana 1", period: "de l'1 al 4 de juliol (4 dies)", basePrice: 30, menjadorPrice: 30.8, guarderiaPrice: 17.2, available: false },
+    { id: 2, name: "Setmana 2", period: "del 8 a l'11 de juliol (4 dies)", basePrice: 30, menjadorPrice: 30.8, guarderiaPrice: 17.2, available: false },
+    { id: 3, name: "Setmana 3", period: "del 14 al 18 de juliol", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: true },
+    { id: 4, name: "Setmana 4", period: "del 21 al 25 de juliol", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: false },
+    { id: 5, name: "Setmana 5", period: "del 28 de juliol al 1 d'agost", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: true },
+    { id: 6, name: "Setmana 6", period: "del 4 al 8 d'agost", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: true },
+    { id: 7, name: "Setmana 7", period: "del 11 al 14 d'agost (4 dies)", basePrice: 30, menjadorPrice: 30.8, guarderiaPrice: 17.2, available: true },
+    { id: 8, name: "Setmana 8", period: "del 18 al 22 d'agost", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: false },
+    { id: 9, name: "Setmana 9", period: "del 25 al 29 d'agost", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: true },
+    { id: 10, name: "Setmana 10", period: "de l'1 al 5 de setembre", basePrice: 47.5, menjadorPrice: 38.5, guarderiaPrice: 21.5, available: true }
+  ];
+
   const [formData, setFormData] = useState<FormData>({
     childName: '',
     birthDate: '',
@@ -37,12 +64,28 @@ const SummerCampForm = () => {
     phone: '',
     email: '',
     allergies: '',
-    largeFamily: false
+    largeFamily: false,
+    selectedWeeks: {},
+    weekServices: {}
   });
 
-  const basePrice = 100; // Price in euros
-  const discount = formData.largeFamily ? 0.25 : 0;
-  const finalPrice = basePrice * (1 - discount);
+  const calculateTotal = () => {
+    let total = 0;
+    Object.keys(formData.selectedWeeks).forEach(weekId => {
+      if (formData.selectedWeeks[parseInt(weekId)]) {
+        const week = weeks.find(w => w.id === parseInt(weekId));
+        if (week) {
+          total += week.basePrice;
+          const services = formData.weekServices[parseInt(weekId)] || {};
+          if (services.menjador) total += week.menjadorPrice;
+          if (services.guarderia) total += week.guarderiaPrice;
+        }
+      }
+    });
+    
+    const discount = formData.largeFamily ? 0.25 : 0;
+    return total * (1 - discount);
+  };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({
@@ -50,6 +93,36 @@ const SummerCampForm = () => {
       [field]: value
     }));
   };
+
+  const handleWeekSelection = (weekId: number, selected: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedWeeks: {
+        ...prev.selectedWeeks,
+        [weekId]: selected
+      },
+      weekServices: {
+        ...prev.weekServices,
+        [weekId]: selected ? (prev.weekServices[weekId] || { menjador: false, guarderia: false }) : { menjador: false, guarderia: false }
+      }
+    }));
+  };
+
+  const handleServiceSelection = (weekId: number, service: 'menjador' | 'guarderia', selected: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      weekServices: {
+        ...prev.weekServices,
+        [weekId]: {
+          ...prev.weekServices[weekId],
+          [service]: selected
+        }
+      }
+    }));
+  };
+
+  const finalPrice = calculateTotal();
+  const hasSelectedWeeks = Object.values(formData.selectedWeeks).some(selected => selected);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,12 +140,38 @@ const SummerCampForm = () => {
       return;
     }
 
+    if (!hasSelectedWeeks) {
+      toast({
+        title: "Error",
+        description: "Si us plau, selecciona almenys una setmana",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Enviar email con los datos del formulario
+      // Prepare selected weeks info for email
+      const selectedWeeksInfo = Object.keys(formData.selectedWeeks)
+        .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
+        .map(weekId => {
+          const week = weeks.find(w => w.id === parseInt(weekId));
+          const services = formData.weekServices[parseInt(weekId)] || {};
+          return {
+            name: week?.name,
+            period: week?.period,
+            basePrice: week?.basePrice,
+            menjador: services.menjador,
+            guarderia: services.guarderia,
+            menjadorPrice: services.menjador ? week?.menjadorPrice : 0,
+            guarderiaPrice: services.guarderia ? week?.guarderiaPrice : 0
+          };
+        });
+
       const emailSent = await sendSummerCampEmail({
         ...formData,
+        selectedWeeksInfo,
         totalPrice: finalPrice
       });
 
@@ -82,7 +181,6 @@ const SummerCampForm = () => {
           description: "La inscripció s'ha processat correctament. Rediriging al pagament...",
         });
 
-        // Redirigir al pago con Redsys después de enviar el email
         setTimeout(() => {
           handlePayment();
         }, 2000);
@@ -102,30 +200,24 @@ const SummerCampForm = () => {
   };
 
   const handlePayment = () => {
-    // Generar ID único para el pedido con formato más específico para Redsys
     const timestamp = Date.now().toString();
-    const orderId = timestamp.slice(-12).padStart(12, '0'); // 12 dígitos, rellenado con ceros
-    const amountInCents = Math.round(finalPrice * 100); // Convertir a céntimos
+    const orderId = timestamp.slice(-12).padStart(12, '0');
+    const amountInCents = Math.round(finalPrice * 100);
 
-    console.log('Preparando pago:', {
-      orderId,
-      amount: amountInCents,
-      finalPrice,
-      childName: formData.childName
-    });
+    const selectedWeeksText = Object.keys(formData.selectedWeeks)
+      .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
+      .map(weekId => weeks.find(w => w.id === parseInt(weekId))?.name)
+      .join(', ');
 
     const paymentData = {
       amount: amountInCents,
       orderId: orderId,
-      productDescription: `Inscripció Casal d'Estiu - ${formData.childName}`,
+      productDescription: `Inscripció Casal d'Estiu - ${formData.childName} - ${selectedWeeksText}`,
       merchantUrl: `${window.location.origin}/payment-response`,
       urlOk: `${window.location.origin}/payment-success`,
       urlKo: `${window.location.origin}/payment-error`
     };
 
-    console.log('Datos de pago completos:', paymentData);
-    
-    // Redirigir a Redsys para el pago
     redirectToRedsysPayment(paymentData);
   };
 
@@ -142,12 +234,72 @@ const SummerCampForm = () => {
         </CardHeader>
         
         <CardContent className="p-6">
+          {/* Selección de semanas */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-blue-700 mb-4">
-              {t('summerCamp.subtitle')}
+              Selecciona les setmanes *
             </h3>
             
-            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <div className="space-y-4">
+              {weeks.filter(week => week.available).map((week) => (
+                <Card key={week.id} className="border border-gray-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-start space-x-3">
+                      <Checkbox
+                        id={`week-${week.id}`}
+                        checked={formData.selectedWeeks[week.id] || false}
+                        onCheckedChange={(checked) => handleWeekSelection(week.id, checked as boolean)}
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <Label htmlFor={`week-${week.id}`} className="font-medium cursor-pointer">
+                              {week.name} - {week.period}
+                            </Label>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Preu base: {week.basePrice}€
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {formData.selectedWeeks[week.id] && (
+                          <div className="mt-3 pl-4 border-l-2 border-blue-200">
+                            <p className="text-sm font-medium mb-2">Serveis opcionals:</p>
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`menjador-${week.id}`}
+                                  checked={formData.weekServices[week.id]?.menjador || false}
+                                  onCheckedChange={(checked) => handleServiceSelection(week.id, 'menjador', checked as boolean)}
+                                />
+                                <Label htmlFor={`menjador-${week.id}`} className="text-sm cursor-pointer">
+                                  Servei de menjador (+{week.menjadorPrice}€)
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`guarderia-${week.id}`}
+                                  checked={formData.weekServices[week.id]?.guarderia || false}
+                                  onCheckedChange={(checked) => handleServiceSelection(week.id, 'guarderia', checked as boolean)}
+                                />
+                                <Label htmlFor={`guarderia-${week.id}`} className="text-sm cursor-pointer">
+                                  Servei de guarderia (+{week.guarderiaPrice}€)
+                                </Label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Descuento y total */}
+          <div className="mb-6">
+            <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center space-x-2 mb-2">
                 <Checkbox 
                   id="largeFamily"
@@ -155,13 +307,13 @@ const SummerCampForm = () => {
                   onCheckedChange={(checked) => handleInputChange('largeFamily', checked as boolean)}
                 />
                 <Label htmlFor="largeFamily" className="text-sm">
-                  {t('summerCamp.discount')}
+                  25% de descompte per família nombrosa o monoparental
                 </Label>
               </div>
               
               <div className="text-right mt-4">
                 <span className="text-lg font-bold">
-                  {t('summerCamp.totalGeneral')} 
+                  TOTAL GENERAL: 
                   <span className="text-red-600 ml-2">{finalPrice.toFixed(2)} €</span>
                 </span>
               </div>
@@ -169,10 +321,11 @@ const SummerCampForm = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Datos del niño/a */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="childName" className="text-sm font-medium">
-                  {t('summerCamp.childName')} *
+                  Nom del nen/a *
                 </Label>
                 <Input
                   id="childName"
@@ -185,25 +338,22 @@ const SummerCampForm = () => {
               
               <div>
                 <Label htmlFor="birthDate" className="text-sm font-medium">
-                  {t('summerCamp.birthDate')} *
+                  Data de naixement *
                 </Label>
-                <div className="flex items-center space-x-2 mt-1">
-                  <Input
-                    id="birthDate"
-                    type="date"
-                    value={formData.birthDate}
-                    onChange={(e) => handleInputChange('birthDate', e.target.value)}
-                    className="flex-1"
-                    required
-                  />
-                  <span className="text-gray-400 text-sm">{t('summerCamp.dateFormat')}</span>
-                </div>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={(e) => handleInputChange('birthDate', e.target.value)}
+                  className="mt-1"
+                  required
+                />
               </div>
             </div>
 
             <div>
               <Label htmlFor="address" className="text-sm font-medium">
-                {t('summerCamp.address')} *
+                Adreça *
               </Label>
               <Input
                 id="address"
@@ -217,7 +367,7 @@ const SummerCampForm = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="population" className="text-sm font-medium">
-                  {t('summerCamp.population')} *
+                  Població *
                 </Label>
                 <Input
                   id="population"
@@ -230,7 +380,7 @@ const SummerCampForm = () => {
               
               <div>
                 <Label htmlFor="parish" className="text-sm font-medium">
-                  {t('summerCamp.parish')} *
+                  Parròquia *
                 </Label>
                 <Input
                   id="parish"
@@ -244,7 +394,7 @@ const SummerCampForm = () => {
 
             <div>
               <Label htmlFor="parentsNames" className="text-sm font-medium">
-                {t('summerCamp.parentsNames')} *
+                Nom dels pares *
               </Label>
               <Input
                 id="parentsNames"
@@ -258,7 +408,7 @@ const SummerCampForm = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone" className="text-sm font-medium">
-                  {t('summerCamp.phone')} *
+                  Telèfon *
                 </Label>
                 <Input
                   id="phone"
@@ -272,7 +422,7 @@ const SummerCampForm = () => {
               
               <div>
                 <Label htmlFor="email" className="text-sm font-medium">
-                  {t('summerCamp.email')} *
+                  Correu electrònic *
                 </Label>
                 <Input
                   id="email"
@@ -287,7 +437,7 @@ const SummerCampForm = () => {
 
             <div>
               <Label htmlFor="allergies" className="text-sm font-medium">
-                {t('summerCamp.allergies')}
+                Al·lèrgies, intoleràncies o malalties
               </Label>
               <Textarea
                 id="allergies"
@@ -300,13 +450,13 @@ const SummerCampForm = () => {
             </div>
 
             <div className="text-center text-sm text-gray-500 mb-4">
-              (*) {t('summerCamp.required')}
+              (*) Camps obligatoris
             </div>
 
             <div className="text-center">
               <Button 
                 type="submit" 
-                disabled={isSubmitting}
+                disabled={isSubmitting || !hasSelectedWeeks}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg disabled:opacity-50"
               >
                 {isSubmitting ? 'Enviant i redirigint al pagament...' : 'Enviar i Pagar'}
