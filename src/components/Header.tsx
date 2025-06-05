@@ -26,7 +26,7 @@ const Header = () => {
         <div className="flex items-center justify-between py-4">
           <div className="flex items-center space-x-4">
             <img 
-              src="/lovable-uploads/25e83cca-7210-4687-a0dc-07d670cc9350.png" 
+              src="/lovable-uploads/528fa716-2bab-4544-95d9-eecc0b8c9e10.png" 
               alt="Comú d'Ordino Logo" 
               className="h-16 w-auto"
             />

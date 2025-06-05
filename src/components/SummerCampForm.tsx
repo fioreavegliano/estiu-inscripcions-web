@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { sendSummerCampEmail } from '../services/emailService';
 
 interface FormData {
   childName: string;
@@ -25,6 +26,7 @@ interface FormData {
 const SummerCampForm = () => {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     childName: '',
     birthDate: '',
@@ -65,27 +67,60 @@ const SummerCampForm = () => {
       return;
     }
 
-    // Simulate form submission
-    console.log('Form submitted:', formData);
-    
-    toast({
-      title: "Formulari enviat",
-      description: "La inscripció s'ha processat correctament. Procedirem al pagament.",
-    });
+    setIsSubmitting(true);
 
-    // Here you would typically redirect to payment or handle payment processing
-    handlePayment();
+    try {
+      // Enviar email con los datos del formulario
+      const emailSent = await sendSummerCampEmail({
+        ...formData,
+        totalPrice: finalPrice
+      });
+
+      if (emailSent) {
+        toast({
+          title: "Formulari enviat",
+          description: "La inscripció s'ha processat correctament. Rebràs una confirmació aviat.",
+        });
+
+        // Limpiar formulario
+        setFormData({
+          childName: '',
+          birthDate: '',
+          address: '',
+          population: '',
+          parish: '',
+          parentsNames: '',
+          phone: '',
+          email: '',
+          allergies: '',
+          largeFamily: false
+        });
+
+        // Proceder al pago si es necesario
+        handlePayment();
+      } else {
+        throw new Error('Error enviant email');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: "Hi ha hagut un error enviant el formulari. Si us plau, torna-ho a intentar.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePayment = () => {
-    // This is where you would integrate with Redsys
-    // For now, we'll simulate the payment process
+    // Esta función se llamará después de enviar el email exitosamente
     toast({
       title: t('payment.processing'),
       description: `Import: ${finalPrice.toFixed(2)}€`,
     });
     
-    // In a real implementation, you would call your Redsys integration here
+    // Aquí integrarías con Redsys
     setTimeout(() => {
       toast({
         title: t('payment.success'),
@@ -271,9 +306,10 @@ const SummerCampForm = () => {
             <div className="text-center">
               <Button 
                 type="submit" 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
+                disabled={isSubmitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg disabled:opacity-50"
               >
-                {t('summerCamp.submit')}
+                {isSubmitting ? 'Enviant...' : t('summerCamp.submit')}
               </Button>
             </div>
           </form>
