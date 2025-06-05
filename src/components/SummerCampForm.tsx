@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { sendSummerCampEmail } from '../services/emailService';
+import { redirectToRedsysPayment } from '../services/redsysService';
 
 interface FormData {
   childName: string;
@@ -79,25 +79,13 @@ const SummerCampForm = () => {
       if (emailSent) {
         toast({
           title: "Formulari enviat",
-          description: "La inscripció s'ha processat correctament. Rebràs una confirmació aviat.",
+          description: "La inscripció s'ha processat correctament. Rediriging al pagament...",
         });
 
-        // Limpiar formulario
-        setFormData({
-          childName: '',
-          birthDate: '',
-          address: '',
-          population: '',
-          parish: '',
-          parentsNames: '',
-          phone: '',
-          email: '',
-          allergies: '',
-          largeFamily: false
-        });
-
-        // Proceder al pago si es necesario
-        handlePayment();
+        // Redirigir al pago con Redsys después de enviar el email
+        setTimeout(() => {
+          handlePayment();
+        }, 2000);
       } else {
         throw new Error('Error enviant email');
       }
@@ -114,19 +102,23 @@ const SummerCampForm = () => {
   };
 
   const handlePayment = () => {
-    // Esta función se llamará después de enviar el email exitosamente
-    toast({
-      title: t('payment.processing'),
-      description: `Import: ${finalPrice.toFixed(2)}€`,
-    });
+    // Generar ID único para el pedido
+    const orderId = 'CASAL' + Date.now().toString().slice(-8);
+    const amountInCents = Math.round(finalPrice * 100); // Convertir a céntimos
+
+    const paymentData = {
+      amount: amountInCents,
+      orderId: orderId,
+      productDescription: `Inscripció Casal d'Estiu - ${formData.childName}`,
+      merchantUrl: `${window.location.origin}/payment-response`,
+      urlOk: `${window.location.origin}/payment-success`,
+      urlKo: `${window.location.origin}/payment-error`
+    };
+
+    console.log('Redirigint al pagament amb Redsys:', paymentData);
     
-    // Aquí integrarías con Redsys
-    setTimeout(() => {
-      toast({
-        title: t('payment.success'),
-        description: "Rebràs un correu de confirmació aviat.",
-      });
-    }, 2000);
+    // Redirigir a Redsys para el pago
+    redirectToRedsysPayment(paymentData);
   };
 
   return (
@@ -309,7 +301,7 @@ const SummerCampForm = () => {
                 disabled={isSubmitting}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg disabled:opacity-50"
               >
-                {isSubmitting ? 'Enviant...' : t('summerCamp.submit')}
+                {isSubmitting ? 'Enviant i redirigint al pagament...' : 'Enviar i Pagar'}
               </Button>
             </div>
           </form>

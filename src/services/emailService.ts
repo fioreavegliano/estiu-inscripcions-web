@@ -1,10 +1,10 @@
 
 import emailjs from '@emailjs/browser';
 
-// Configuración de EmailJS
-const EMAILJS_SERVICE_ID = 'service_ordino';
-const EMAILJS_TEMPLATE_ID = 'template_summercamp';
-const EMAILJS_PUBLIC_KEY = 'your_public_key_here'; // Necesitarás configurar esto en EmailJS
+// Configuración actualizada de EmailJS
+const EMAILJS_SERVICE_ID = 'service_thrbafh';
+const EMAILJS_TEMPLATE_ID = 'template_qfkllkr';
+const EMAILJS_PUBLIC_KEY = 'RGw4LWaHl4tdZNWgN';
 
 export interface EmailData {
   childName: string;
@@ -25,7 +25,7 @@ export const sendSummerCampEmail = async (formData: EmailData): Promise<boolean>
     console.log('Enviando email con datos:', formData);
     
     const templateParams = {
-      to_email: 'tramits2@ordino.ad',
+      to_email: 'inscripcions@tramitsordino.ad',
       child_name: formData.childName,
       birth_date: formData.birthDate,
       address: formData.address,
