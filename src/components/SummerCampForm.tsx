@@ -102,9 +102,17 @@ const SummerCampForm = () => {
   };
 
   const handlePayment = () => {
-    // Generar ID único para el pedido
-    const orderId = 'CASAL' + Date.now().toString().slice(-8);
+    // Generar ID único para el pedido con formato más específico para Redsys
+    const timestamp = Date.now().toString();
+    const orderId = timestamp.slice(-12).padStart(12, '0'); // 12 dígitos, rellenado con ceros
     const amountInCents = Math.round(finalPrice * 100); // Convertir a céntimos
+
+    console.log('Preparando pago:', {
+      orderId,
+      amount: amountInCents,
+      finalPrice,
+      childName: formData.childName
+    });
 
     const paymentData = {
       amount: amountInCents,
@@ -115,7 +123,7 @@ const SummerCampForm = () => {
       urlKo: `${window.location.origin}/payment-error`
     };
 
-    console.log('Redirigint al pagament amb Redsys:', paymentData);
+    console.log('Datos de pago completos:', paymentData);
     
     // Redirigir a Redsys para el pago
     redirectToRedsysPayment(paymentData);
