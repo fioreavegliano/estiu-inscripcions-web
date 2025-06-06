@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useLanguage, Language } from '../context/LanguageContext';
-import { Globe } from 'lucide-react';
+import { Globe, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,43 +21,36 @@ const Header = () => {
   ];
 
   return (
-    <header className="bg-gradient-to-r from-blue-800 to-blue-600 text-white shadow-lg">
+    <header className="bg-gradient-to-r from-blue-400 to-blue-300 text-white shadow-lg">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between py-4">
-          <div className="flex items-center space-x-4">
-            <img 
-              src="/lovable-uploads/528fa716-2bab-4544-95d9-eecc0b8c9e10.png" 
-              alt="Comú d'Ordino Logo" 
-              className="h-16 w-auto"
-            />
-            <div>
-              <h1 className="text-2xl font-bold">{t('siteTitle')}</h1>
-            </div>
-          </div>
-          
-          <nav className="hidden md:flex items-center space-x-6">
-            <a href="/" className="hover:text-blue-200 transition-colors">
-              {t('nav.inicio')}
-            </a>
-            <a href="/inscripcions" className="hover:text-blue-200 transition-colors">
-              {t('nav.inscripcions')}
-            </a>
-            <a href="/tramits" className="hover:text-blue-200 transition-colors">
-              {t('nav.tramits')}
-            </a>
-            <a href="/contacte" className="hover:text-blue-200 transition-colors">
-              {t('nav.contacte')}
-            </a>
+          <nav className="flex items-center space-x-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="text-white hover:text-blue-100 flex items-center space-x-1">
+                  <span>Inscripcions</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-white z-50">
+                <DropdownMenuItem className="cursor-pointer">
+                  <a href="/" className="w-full">Casal d'Estiu</a>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <a href="/concursos" className="w-full">Concursos</a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="text-blue-800">
+              <Button variant="outline" size="sm" className="text-blue-800 bg-white">
                 <Globe className="h-4 w-4 mr-2" />
                 {languages.find(lang => lang.code === language)?.name}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-white">
+            <DropdownMenuContent className="bg-white z-50">
               {languages.map((lang) => (
                 <DropdownMenuItem 
                   key={lang.code}
