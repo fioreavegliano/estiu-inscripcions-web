@@ -1,14 +1,12 @@
 
 import CryptoJS from 'crypto-js';
 
-// Configuración de Redsys actualizada con los datos recibidos de la BBDD
+// Configuración de Redsys actualizada con la clave correcta
 const REDSYS_CONFIG = {
   merchantCode: '992082974',
   terminal: '1',
-  secretKey: 'qwertyasdf0123456789', // Merchant_Key_Proves de tu BBDD
-  // secretKeyProduction: 'iu5wkCidko+4fOXkIdCGejIpa9axJm/0', // Merchant_Key de producción
+  secretKey: 'sq7HjrUOBfKmC576ILgskD5srU870gJ7', // Clave correcta proporcionada por Redsys
   url: 'https://sis.redsys.es/sis/realizarPago/utf-8', // URL de producción
-  // urlTest: 'https://sis-t.redsys.es:25443/sis/realizarPago', // URL de pruebas
   currency: '978', // EUR
   transactionType: '0' // Autorización
 };
@@ -77,8 +75,8 @@ export const createRedsysPayment = (paymentData: PaymentData) => {
     const merchantParametersB64 = btoa(merchantParametersJson);
     console.log('Parámetros codificados en Base64:', merchantParametersB64);
     
-    // Crear firma
-    const signature = createSignature(merchantParametersB64, formattedOrderId);
+    // Crear firma siguiendo el algoritmo de Redsys
+    const signature = createRedsysSignature(merchantParametersB64, formattedOrderId);
     console.log('Firma generada:', signature);
 
     return {
@@ -92,8 +90,24 @@ export const createRedsysPayment = (paymentData: PaymentData) => {
   }
 };
 
+// Función para cifrar con TripleDES siguiendo el algoritmo de Redsys
+const des_encrypt = (message: string, key: CryptoJS.lib.WordArray): string => {
+  const ivArray = [0, 0, 0, 0, 0, 0, 0, 0];
+  const IV = ivArray.map(item => String.fromCharCode(item)).join("");
+  
+  console.log('IV para TripleDES:', IV);
+  
+  const encode_str = CryptoJS.TripleDES.encrypt(message, key, {
+    iv: CryptoJS.enc.Utf8.parse(IV),
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.ZeroPadding
+  });
+  
+  return encode_str.toString();
+};
+
 // Función para crear la firma HMAC siguiendo las especificaciones de Redsys
-const createSignature = (merchantParametersB64: string, orderId: string): string => {
+const createRedsysSignature = (merchantParametersB64: string, orderId: string): string => {
   try {
     console.log('Creando firma para orderId:', orderId);
     console.log('Clave secreta utilizada:', REDSYS_CONFIG.secretKey);
@@ -103,19 +117,20 @@ const createSignature = (merchantParametersB64: string, orderId: string): string
     const keyDecoded = CryptoJS.enc.Base64.parse(keyB64);
     console.log('Clave decodificada (hex):', keyDecoded.toString());
     
-    // 2. Generar clave derivada con el orderId
-    const orderKeyBytes = CryptoJS.enc.Utf8.parse(orderId);
-    console.log('OrderId en bytes (hex):', orderKeyBytes.toString());
+    // 2. Generar clave derivada con el orderId usando TripleDES
+    const encodedSignatureDES = des_encrypt(orderId, keyDecoded);
+    console.log('Clave de operación (TripleDES):', encodedSignatureDES);
     
-    const derivedKey = CryptoJS.HmacSHA256(orderId, keyDecoded);
-    console.log('Clave derivada (hex):', derivedKey.toString());
+    // 3. Decodificar la clave derivada de Base64
+    const decodedSignatureDES = CryptoJS.enc.Base64.parse(encodedSignatureDES);
+    console.log('Clave de operación decodificada (hex):', decodedSignatureDES.toString());
     
-    // 3. Crear firma con los parámetros y la clave derivada
-    const signature = CryptoJS.HmacSHA256(merchantParametersB64, derivedKey);
-    console.log('Firma sin codificar (hex):', signature.toString());
+    // 4. Crear firma HMAC con los parámetros y la clave derivada
+    const hmac = CryptoJS.HmacSHA256(merchantParametersB64, decodedSignatureDES);
+    console.log('HMAC sin codificar (hex):', hmac.toString());
     
-    // 4. Codificar la firma en Base64
-    const signatureB64 = CryptoJS.enc.Base64.stringify(signature);
+    // 5. Codificar la firma en Base64
+    const signatureB64 = CryptoJS.enc.Base64.stringify(hmac);
     console.log('Firma final (Base64):', signatureB64);
     
     return signatureB64;
