@@ -21,6 +21,11 @@ interface Week {
   available: boolean;
 }
 
+interface WeekService {
+  menjador: boolean;
+  guarderia: boolean;
+}
+
 interface FormData {
   childName: string;
   birthDate: string;
@@ -33,7 +38,33 @@ interface FormData {
   allergies: string;
   largeFamily: boolean;
   selectedWeeks: { [key: number]: boolean };
-  weekServices: { [key: number]: { menjador: boolean; guarderia: boolean } };
+  weekServices: { [key: number]: WeekService };
+}
+
+interface SelectedWeekInfo {
+  name?: string;
+  period?: string;
+  basePrice?: number;
+  menjador: boolean;
+  guarderia: boolean;
+  menjadorPrice: number | undefined;
+  guarderiaPrice: number | undefined;
+}
+
+// Ampliamos la interfaz EmailData para incluir la información de semanas seleccionadas
+interface ExtendedEmailData {
+  childName: string;
+  birthDate: string;
+  address: string;
+  population: string;
+  parish: string;
+  parentsNames: string;
+  phone: string;
+  email: string;
+  allergies: string;
+  largeFamily: boolean;
+  totalPrice: number;
+  selectedWeeksInfo: SelectedWeekInfo[];
 }
 
 const SummerCampForm = () => {
@@ -76,7 +107,7 @@ const SummerCampForm = () => {
         const week = weeks.find(w => w.id === parseInt(weekId));
         if (week) {
           total += week.basePrice;
-          const services = formData.weekServices[parseInt(weekId)] || {};
+          const services = formData.weekServices[parseInt(weekId)] || { menjador: false, guarderia: false };
           if (services.menjador) total += week.menjadorPrice;
           if (services.guarderia) total += week.guarderiaPrice;
         }
@@ -103,7 +134,9 @@ const SummerCampForm = () => {
       },
       weekServices: {
         ...prev.weekServices,
-        [weekId]: selected ? (prev.weekServices[weekId] || { menjador: false, guarderia: false }) : { menjador: false, guarderia: false }
+        [weekId]: selected 
+          ? (prev.weekServices[weekId] || { menjador: false, guarderia: false }) 
+          : { menjador: false, guarderia: false }
       }
     }));
   };
@@ -114,7 +147,7 @@ const SummerCampForm = () => {
       weekServices: {
         ...prev.weekServices,
         [weekId]: {
-          ...prev.weekServices[weekId],
+          ...(prev.weekServices[weekId] || { menjador: false, guarderia: false }),
           [service]: selected
         }
       }
@@ -156,8 +189,9 @@ const SummerCampForm = () => {
       const selectedWeeksInfo = Object.keys(formData.selectedWeeks)
         .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
         .map(weekId => {
-          const week = weeks.find(w => w.id === parseInt(weekId));
-          const services = formData.weekServices[parseInt(weekId)] || {};
+          const weekIdNum = parseInt(weekId);
+          const week = weeks.find(w => w.id === weekIdNum);
+          const services = formData.weekServices[weekIdNum] || { menjador: false, guarderia: false };
           return {
             name: week?.name,
             period: week?.period,
@@ -169,11 +203,14 @@ const SummerCampForm = () => {
           };
         });
 
-      const emailSent = await sendSummerCampEmail({
+      // Envía el email con TypeScript correcto
+      const emailData: ExtendedEmailData = {
         ...formData,
         selectedWeeksInfo,
         totalPrice: finalPrice
-      });
+      };
+
+      const emailSent = await sendSummerCampEmail(emailData as any);
 
       if (emailSent) {
         toast({
@@ -200,25 +237,41 @@ const SummerCampForm = () => {
   };
 
   const handlePayment = () => {
-    const timestamp = Date.now().toString();
-    const orderId = timestamp.slice(-12).padStart(12, '0');
-    const amountInCents = Math.round(finalPrice * 100);
+    try {
+      // Generamos un orderId único basado en la hora y aleatoriedad para evitar colisiones
+      const timestamp = Date.now();
+      const randomNum = Math.floor(Math.random() * 1000);
+      const orderId = `${timestamp}${randomNum}`.substring(0, 12);
+      
+      // El importe debe estar en céntimos (sin decimales)
+      const amountInCents = Math.round(finalPrice * 100);
 
-    const selectedWeeksText = Object.keys(formData.selectedWeeks)
-      .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
-      .map(weekId => weeks.find(w => w.id === parseInt(weekId))?.name)
-      .join(', ');
+      const selectedWeeksText = Object.keys(formData.selectedWeeks)
+        .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
+        .map(weekId => weeks.find(w => w.id === parseInt(weekId))?.name)
+        .join(', ');
 
-    const paymentData = {
-      amount: amountInCents,
-      orderId: orderId,
-      productDescription: `Inscripció Casal d'Estiu - ${formData.childName} - ${selectedWeeksText}`,
-      merchantUrl: `${window.location.origin}/payment-response`,
-      urlOk: `${window.location.origin}/payment-success`,
-      urlKo: `${window.location.origin}/payment-error`
-    };
+      console.log(`Preparando pago de ${finalPrice}€ (${amountInCents} céntimos) para OrderID: ${orderId}`);
 
-    redirectToRedsysPayment(paymentData);
+      const paymentData = {
+        amount: amountInCents,
+        orderId: orderId,
+        productDescription: `Inscripció Casal d'Estiu - ${formData.childName} - ${selectedWeeksText}`,
+        merchantUrl: `${window.location.origin}/payment-response`,
+        urlOk: `${window.location.origin}/payment-success`,
+        urlKo: `${window.location.origin}/payment-error`
+      };
+
+      console.log('Datos de pago enviados a Redsys:', paymentData);
+      redirectToRedsysPayment(paymentData);
+    } catch (error) {
+      console.error('Error al preparar el pago:', error);
+      toast({
+        title: "Error",
+        description: "Hi ha hagut un error preparant el pagament. Si us plau, contacta amb nosaltres.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
