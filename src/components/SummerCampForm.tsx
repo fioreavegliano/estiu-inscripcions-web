@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { sendSummerCampEmail } from '../services/emailService';
 import { redirectToRedsysPayment } from '../services/redsysService';
+import { insertInscription } from '../services/supabaseDatabaseService';
 
 interface Week {
   id: number;
@@ -208,29 +209,26 @@ const SummerCampForm = () => {
           };
         });
 
-      // Guardar en base de datos MySQL
-      const { insertInscription } = await import('../services/databaseService');
-      
+      // Guardar en Supabase
       const inscriptionData = {
-        child_name: formData.childName,
-        birth_date: formData.birthDate,
+        childname: formData.childName,
+        birthdate: formData.birthDate,
         address: formData.address,
         population: formData.population,
         parish: formData.parish,
-        parents_names: formData.parentsNames,
+        parentsnames: formData.parentsNames,
         phone: formData.phone,
         email: formData.email,
         allergies: formData.allergies,
-        large_family: formData.largeFamily,
-        selected_weeks: JSON.stringify(selectedWeeksInfo),
-        week_services: JSON.stringify(formData.weekServices),
-        total_price: finalPrice,
+        largefamily: formData.largeFamily,
+        setmanes: JSON.stringify(selectedWeeksInfo),
+        totalprice: finalPrice,
         payment_status: 'pending' as const,
         payment_order_id: orderId
       };
 
       const inscriptionId = await insertInscription(inscriptionData);
-      console.log('Inscripción guardada en MySQL con ID:', inscriptionId);
+      console.log('Inscripción guardada en Supabase con ID:', inscriptionId);
 
       // Enviar email como backup
       try {
