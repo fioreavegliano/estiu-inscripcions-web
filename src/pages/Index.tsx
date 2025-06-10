@@ -3,8 +3,12 @@ import React from 'react';
 import { LanguageProvider } from '../context/LanguageContext';
 import Header from '../components/Header';
 import SummerCampForm from '../components/SummerCampForm';
+import { useDatabaseInit } from '../hooks/useDatabaseInit';
 
 const Index = () => {
+  // Inicializar base de datos al cargar la aplicación
+  useDatabaseInit();
+
   return (
     <LanguageProvider>
       <div className="min-h-screen bg-gray-50">

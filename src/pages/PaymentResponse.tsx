@@ -1,48 +1,80 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { updatePaymentStatus } from '../services/databaseService';
 
 const PaymentResponse = () => {
-  const [isProcessing, setIsProcessing] = useState(true);
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [processing, setProcessing] = useState(true);
+
   useEffect(() => {
-    // Aquí podrías procesar la respuesta de Redsys si es necesario
-    console.log('Parámetros de respuesta recibidos:', Object.fromEntries(queryParams.entries()));
-    
-    // Simulamos un tiempo de procesamiento
-    const timer = setTimeout(() => {
-      setIsProcessing(false);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, [queryParams]);
+    const processPaymentResponse = async () => {
+      try {
+        // Obtener parámetros de Redsys
+        const dsResponse = searchParams.get('Ds_Response');
+        const dsOrder = searchParams.get('Ds_Order');
+        const dsSignature = searchParams.get('Ds_Signature');
+
+        console.log('Respuesta de Redsys:', { dsResponse, dsOrder, dsSignature });
+
+        if (!dsResponse || !dsOrder) {
+          console.error('Faltan parámetros en la respuesta de Redsys');
+          navigate('/payment-error');
+          return;
+        }
+
+        // Verificar si el pago fue exitoso
+        // En Redsys, códigos 0000-0099 son exitosos
+        const responseCode = parseInt(dsResponse);
+        const isSuccessful = responseCode >= 0 && responseCode <= 99;
+
+        console.log(`Código de respuesta: ${responseCode}, Exitoso: ${isSuccessful}`);
+
+        // Actualizar estado en base de datos
+        if (dsOrder) {
+          const status = isSuccessful ? 'completed' : 'failed';
+          await updatePaymentStatus(dsOrder, status);
+          console.log(`Estado de pago actualizado para ${dsOrder}: ${status}`);
+        }
+
+        // Redirigir según el resultado
+        setTimeout(() => {
+          if (isSuccessful) {
+            navigate('/payment-success?order=' + dsOrder);
+          } else {
+            navigate('/payment-error?order=' + dsOrder + '&code=' + responseCode);
+          }
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error procesando respuesta de pago:', error);
+        navigate('/payment-error');
+      } finally {
+        setProcessing(false);
+      }
+    };
+
+    processPaymentResponse();
+  }, [searchParams, navigate]);
 
   return (
-    <div className="max-w-md mx-auto p-6">
-      <Card className="shadow-lg">
-        <CardHeader className="bg-blue-50">
-          <CardTitle className="text-xl text-blue-800 text-center">
-            Processant la resposta del pagament
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <Card className="max-w-md w-full">
+        <CardHeader>
+          <CardTitle className="text-center text-blue-800">
+            Processant Pagament
           </CardTitle>
         </CardHeader>
-        
-        <CardContent className="p-6 text-center">
-          {isProcessing ? (
-            <>
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto mb-4"></div>
-              <p>Estem processant la teva transacció...</p>
-            </>
+        <CardContent className="text-center">
+          {processing ? (
+            <div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p>Processant la resposta del pagament...</p>
+            </div>
           ) : (
-            <>
-              <p className="mb-4">La resposta ha estat processada.</p>
-              <Button asChild>
-                <Link to="/">Tornar a l'inici</Link>
-              </Button>
-            </>
+            <p>Redirigint...</p>
           )}
         </CardContent>
       </Card>

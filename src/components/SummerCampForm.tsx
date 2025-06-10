@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -185,7 +184,12 @@ const SummerCampForm = () => {
     setIsSubmitting(true);
 
     try {
-      // Prepare selected weeks info for email
+      // Generamos un orderId único
+      const timestamp = Date.now();
+      const randomNum = Math.floor(Math.random() * 1000);
+      const orderId = `${timestamp}${randomNum}`.substring(0, 12);
+
+      // Preparar datos para la base de datos
       const selectedWeeksInfo = Object.keys(formData.selectedWeeks)
         .filter(weekId => formData.selectedWeeks[parseInt(weekId)])
         .map(weekId => {
@@ -193,6 +197,7 @@ const SummerCampForm = () => {
           const week = weeks.find(w => w.id === weekIdNum);
           const services = formData.weekServices[weekIdNum] || { menjador: false, guarderia: false };
           return {
+            weekId: weekIdNum,
             name: week?.name,
             period: week?.period,
             basePrice: week?.basePrice,
@@ -203,32 +208,57 @@ const SummerCampForm = () => {
           };
         });
 
-      // Envía el email con TypeScript correcto
-      const emailData: ExtendedEmailData = {
-        ...formData,
-        selectedWeeksInfo,
-        totalPrice: finalPrice
+      // Guardar en base de datos MySQL
+      const { insertInscription } = await import('../services/databaseService');
+      
+      const inscriptionData = {
+        child_name: formData.childName,
+        birth_date: formData.birthDate,
+        address: formData.address,
+        population: formData.population,
+        parish: formData.parish,
+        parents_names: formData.parentsNames,
+        phone: formData.phone,
+        email: formData.email,
+        allergies: formData.allergies,
+        large_family: formData.largeFamily,
+        selected_weeks: JSON.stringify(selectedWeeksInfo),
+        week_services: JSON.stringify(formData.weekServices),
+        total_price: finalPrice,
+        payment_status: 'pending' as const,
+        payment_order_id: orderId
       };
 
-      const emailSent = await sendSummerCampEmail(emailData as any);
+      const inscriptionId = await insertInscription(inscriptionData);
+      console.log('Inscripción guardada en MySQL con ID:', inscriptionId);
 
-      if (emailSent) {
-        toast({
-          title: "Formulari enviat",
-          description: "La inscripció s'ha processat correctament. Rediriging al pagament...",
-        });
-
-        setTimeout(() => {
-          handlePayment();
-        }, 2000);
-      } else {
-        throw new Error('Error enviant email');
+      // Enviar email como backup
+      try {
+        const emailData = {
+          ...formData,
+          selectedWeeksInfo,
+          totalPrice: finalPrice
+        };
+        await sendSummerCampEmail(emailData as any);
+        console.log('Email de confirmación enviado');
+      } catch (emailError) {
+        console.warn('Error enviando email, pero inscripción guardada:', emailError);
       }
+
+      toast({
+        title: "Inscripció guardada",
+        description: "La inscripció s'ha guardat correctament. Redirigint al pagament...",
+      });
+
+      setTimeout(() => {
+        handlePayment(orderId);
+      }, 2000);
+
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error guardando inscripción:', error);
       toast({
         title: "Error",
-        description: "Hi ha hagut un error enviant el formulari. Si us plau, torna-ho a intentar.",
+        description: "Hi ha hagut un error guardant la inscripció. Si us plau, torna-ho a intentar.",
         variant: "destructive"
       });
     } finally {
@@ -236,13 +266,8 @@ const SummerCampForm = () => {
     }
   };
 
-  const handlePayment = () => {
+  const handlePayment = (orderId: string) => {
     try {
-      // Generamos un orderId único basado en la hora y aleatoriedad para evitar colisiones
-      const timestamp = Date.now();
-      const randomNum = Math.floor(Math.random() * 1000);
-      const orderId = `${timestamp}${randomNum}`.substring(0, 12);
-      
       // El importe debe estar en céntimos (sin decimales)
       const amountInCents = Math.round(finalPrice * 100);
 
